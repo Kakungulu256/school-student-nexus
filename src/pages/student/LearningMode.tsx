@@ -1,418 +1,272 @@
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
-import { api, Question, Subject } from '@/lib/api';
-import { useToast } from '@/components/ui/use-toast';
-import { Book, Check, X } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { ArrowLeft, BookOpen, Clock, ThumbsUp } from 'lucide-react';
+
+// Mock question data
+const mockQuestions = {
+  multipleChoice: [
+    {
+      id: 1,
+      question: "Which of the following is NOT a prime number?",
+      options: ["3", "5", "9", "11"],
+      correctAnswer: "9",
+    },
+    {
+      id: 2,
+      question: "What is the formula for the area of a circle?",
+      options: ["πr²", "2πr", "πd", "2πr²"],
+      correctAnswer: "πr²",
+    },
+  ],
+  checkbox: [
+    {
+      id: 3,
+      question: "Select all the even numbers:",
+      options: ["2", "3", "4", "6", "7", "8"],
+      correctAnswers: ["2", "4", "6", "8"],
+    },
+    {
+      id: 4,
+      question: "Which of these are mammals?",
+      options: ["Bat", "Snake", "Whale", "Crocodile", "Tiger"],
+      correctAnswers: ["Bat", "Whale", "Tiger"],
+    },
+  ],
+  dragAndDrop: [
+    {
+      id: 5,
+      question: "Match the countries with their capitals:",
+      pairs: [
+        { item: "France", match: "Paris" },
+        { item: "Japan", match: "Tokyo" },
+        { item: "Egypt", match: "Cairo" },
+        { item: "Brazil", match: "Brasília" },
+      ],
+    },
+  ],
+};
 
 export default function LearningMode() {
-  const { toast } = useToast();
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [selectedSubject, setSelectedSubject] = useState<string>('');
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [userAnswers, setUserAnswers] = useState<Record<string, string | string[]>>({});
-  const [isChecking, setIsChecking] = useState(false);
-  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [questionType, setQuestionType] = useState<'objective' | 'checkbox' | 'dragdrop'>('objective');
+  const navigate = useNavigate();
+  const [currentTab, setCurrentTab] = useState('multiple-choice');
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string>>({});
+  const [checkboxAnswers, setCheckboxAnswers] = useState<Record<number, string[]>>({});
+  const [showResults, setShowResults] = useState(false);
 
-  useEffect(() => {
-    const fetchSubjects = async () => {
-      try {
-        const data = await api.getSubjects();
-        setSubjects(data);
-        if (data.length > 0) {
-          setSelectedSubject(data[0].id);
-        }
-      } catch (error) {
-        toast({
-          title: 'Error',
-          description: 'Failed to fetch subjects',
-          variant: 'destructive',
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const handleRadioChange = (questionId: number, value: string) => {
+    setSelectedAnswers(prev => ({
+      ...prev,
+      [questionId]: value
+    }));
+  };
 
-    fetchSubjects();
-  }, [toast]);
-
-  useEffect(() => {
-    if (!selectedSubject) return;
-
-    const fetchQuestions = async () => {
-      setIsLoading(true);
-      try {
-        const data = await api.getQuestionsBySubject(selectedSubject);
-        // Filter by selected question type
-        const filteredQuestions = data.filter(q => q.type === questionType);
-        setQuestions(filteredQuestions);
-        setCurrentQuestionIndex(0);
-        setUserAnswers({});
-        setIsChecking(false);
-        setIsCorrect(null);
-      } catch (error) {
-        toast({
-          title: 'Error',
-          description: 'Failed to fetch questions',
-          variant: 'destructive',
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchQuestions();
-  }, [selectedSubject, questionType, toast]);
-
-  const currentQuestion = questions[currentQuestionIndex];
-
-  const handleAnswer = (value: string | string[]) => {
-    if (!currentQuestion) return;
-    
-    setUserAnswers({
-      ...userAnswers,
-      [currentQuestion.id]: value,
+  const handleCheckboxChange = (questionId: number, value: string) => {
+    setCheckboxAnswers(prev => {
+      const currentSelections = prev[questionId] || [];
+      const newSelections = currentSelections.includes(value)
+        ? currentSelections.filter(item => item !== value)
+        : [...currentSelections, value];
+      
+      return {
+        ...prev,
+        [questionId]: newSelections
+      };
     });
   };
 
-  const handleCheckAnswer = () => {
-    if (!currentQuestion) return;
-    
-    setIsChecking(true);
-    const userAnswer = userAnswers[currentQuestion.id];
-    
-    if (currentQuestion.type === 'checkbox') {
-      // For checkbox, compare arrays
-      const correct = 
-        Array.isArray(userAnswer) && 
-        Array.isArray(currentQuestion.correctAnswers) &&
-        userAnswer.length === currentQuestion.correctAnswers.length &&
-        userAnswer.every(a => currentQuestion.correctAnswers?.includes(a));
-      
-      setIsCorrect(correct);
-    } else {
-      // For objective and dragdrop
-      const correct = 
-        JSON.stringify(userAnswer) === JSON.stringify(currentQuestion.correctAnswers);
-      
-      setIsCorrect(correct);
-    }
+  const handleSubmit = () => {
+    setShowResults(true);
+    // In a real application, you would process answers here
   };
 
-  const handleNextQuestion = () => {
-    if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-      setIsChecking(false);
-      setIsCorrect(null);
-    } else {
-      toast({
-        title: 'End of questions',
-        description: 'You have completed all questions in this section.',
-      });
-    }
-  };
-
-  const getSubjectName = (id: string) => {
-    const subject = subjects.find(s => s.id === id);
-    return subject ? subject.name : '';
+  const handleBackToDashboard = () => {
+    navigate('/dashboard');
   };
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Learning Mode</h1>
-          <p className="text-muted-foreground">
-            Practice with interactive questions to improve your skills
-          </p>
-        </div>
-        
-        {isLoading && !currentQuestion ? (
-          <div className="flex justify-center items-center h-64">
-            <p>Loading questions...</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={handleBackToDashboard}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <h1 className="text-2xl font-bold tracking-tight">Learning Mode</h1>
           </div>
-        ) : (
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <CardTitle>Question Types</CardTitle>
-                    <CardDescription>
-                      Select the type of questions you want to practice
-                    </CardDescription>
-                  </div>
-                  
-                  <div className="flex space-x-2">
-                    <Label className="mr-2">Subject:</Label>
-                    <select
-                      value={selectedSubject}
-                      onChange={(e) => setSelectedSubject(e.target.value)}
-                      className="border rounded px-2 py-1 text-sm"
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <BookOpen className="h-4 w-4" />
+            <span>Practice Questions</span>
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Interactive Practice</CardTitle>
+              <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                <Clock className="h-4 w-4" />
+                <span>No time limit</span>
+              </div>
+            </div>
+            <CardDescription>
+              Answer questions to improve your understanding of the subject
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={currentTab} onValueChange={setCurrentTab}>
+              <TabsList className="mb-4">
+                <TabsTrigger value="multiple-choice">Multiple Choice</TabsTrigger>
+                <TabsTrigger value="checkbox">Checkbox Selection</TabsTrigger>
+                <TabsTrigger value="drag-and-drop">Drag & Drop</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="multiple-choice" className="space-y-6">
+                {mockQuestions.multipleChoice.map((q) => (
+                  <div key={q.id} className="p-4 border rounded-lg space-y-4">
+                    <div className="font-medium">{q.question}</div>
+                    <RadioGroup 
+                      value={selectedAnswers[q.id] || ""} 
+                      onValueChange={(value) => handleRadioChange(q.id, value)}
                     >
-                      {subjects.map((subject) => (
-                        <option key={subject.id} value={subject.id}>
-                          {subject.name}
-                        </option>
+                      {q.options.map((option) => (
+                        <div key={option} className="flex items-center space-x-2">
+                          <RadioGroupItem value={option} id={`q${q.id}-${option}`} />
+                          <Label 
+                            htmlFor={`q${q.id}-${option}`}
+                            className={
+                              showResults 
+                                ? option === q.correctAnswer 
+                                  ? "text-green-600 font-medium" 
+                                  : selectedAnswers[q.id] === option && option !== q.correctAnswer 
+                                    ? "text-red-600 line-through" 
+                                    : ""
+                                : ""
+                            }
+                          >
+                            {option}
+                            {showResults && option === q.correctAnswer && (
+                              <ThumbsUp className="inline-block ml-2 h-4 w-4 text-green-600" />
+                            )}
+                          </Label>
+                        </div>
                       ))}
-                    </select>
+                    </RadioGroup>
+                    {showResults && (
+                      <div className={
+                        selectedAnswers[q.id] === q.correctAnswer 
+                          ? "text-green-600 text-sm mt-2" 
+                          : "text-red-600 text-sm mt-2"
+                      }>
+                        {selectedAnswers[q.id] === q.correctAnswer 
+                          ? "Correct! Well done." 
+                          : `Incorrect. The correct answer is ${q.correctAnswer}.`}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </TabsContent>
+              
+              <TabsContent value="checkbox" className="space-y-6">
+                {mockQuestions.checkbox.map((q) => (
+                  <div key={q.id} className="p-4 border rounded-lg space-y-4">
+                    <div className="font-medium">{q.question}</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {q.options.map((option) => (
+                        <div key={option} className="flex items-center space-x-2">
+                          <Checkbox 
+                            id={`q${q.id}-${option}`} 
+                            checked={(checkboxAnswers[q.id] || []).includes(option)}
+                            onCheckedChange={() => handleCheckboxChange(q.id, option)}
+                          />
+                          <Label 
+                            htmlFor={`q${q.id}-${option}`}
+                            className={
+                              showResults 
+                                ? q.correctAnswers.includes(option) 
+                                  ? "text-green-600 font-medium" 
+                                  : (checkboxAnswers[q.id] || []).includes(option) && !q.correctAnswers.includes(option) 
+                                    ? "text-red-600 line-through" 
+                                    : ""
+                                : ""
+                            }
+                          >
+                            {option}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                    {showResults && (
+                      <div className="text-sm mt-2">
+                        <div>Correct answers: {q.correctAnswers.join(", ")}</div>
+                        <div className={
+                          JSON.stringify((checkboxAnswers[q.id] || []).sort()) === JSON.stringify(q.correctAnswers.sort())
+                            ? "text-green-600" 
+                            : "text-red-600"
+                        }>
+                          {JSON.stringify((checkboxAnswers[q.id] || []).sort()) === JSON.stringify(q.correctAnswers.sort())
+                            ? "Correct! All options selected properly."
+                            : "Some selections were incorrect."}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </TabsContent>
+              
+              <TabsContent value="drag-and-drop" className="space-y-6">
+                <div className="p-4 border rounded-lg">
+                  <div className="mb-4 font-medium">
+                    {mockQuestions.dragAndDrop[0].question}
+                  </div>
+                  <div className="bg-yellow-50 p-4 rounded border border-yellow-200 text-yellow-800">
+                    Drag and drop functionality requires JavaScript interaction.
+                    In a real implementation, you would be able to drag items from the left 
+                    column and drop them onto matching items in the right column.
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div className="space-y-2">
+                      <h3 className="font-medium text-sm text-gray-500">Items</h3>
+                      {mockQuestions.dragAndDrop[0].pairs.map(pair => (
+                        <div key={pair.item} className="p-2 bg-blue-50 border border-blue-100 rounded">
+                          {pair.item}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="font-medium text-sm text-gray-500">Matches</h3>
+                      {mockQuestions.dragAndDrop[0].pairs.map(pair => (
+                        <div key={pair.match} className="p-2 bg-purple-50 border border-purple-100 rounded">
+                          {pair.match}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <Tabs 
-                  defaultValue="objective" 
-                  value={questionType}
-                  onValueChange={(value) => setQuestionType(value as 'objective' | 'checkbox' | 'dragdrop')}
-                >
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="objective">Multiple Choice</TabsTrigger>
-                    <TabsTrigger value="checkbox">Checkbox</TabsTrigger>
-                    <TabsTrigger value="dragdrop">Drag & Drop</TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="objective" className="mt-4 text-center">
-                    Questions with a single correct answer
-                  </TabsContent>
-                  <TabsContent value="checkbox" className="mt-4 text-center">
-                    Questions with multiple correct answers
-                  </TabsContent>
-                  <TabsContent value="dragdrop" className="mt-4 text-center">
-                    Interactive matching exercises
-                  </TabsContent>
-                </Tabs>
-              </CardContent>
-            </Card>
+              </TabsContent>
+            </Tabs>
             
-            {questions.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center p-8">
-                  <Book className="h-12 w-12 text-gray-400 mb-4" />
-                  <h3 className="text-lg font-medium">No questions available</h3>
-                  <p className="text-gray-500">
-                    There are no {questionType} questions available for {getSubjectName(selectedSubject)}
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardHeader>
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <CardTitle className="flex items-center">
-                        <span className="inline-block w-8 h-8 text-sm bg-education-primary text-white rounded-full flex items-center justify-center mr-2">
-                          {currentQuestionIndex + 1}
-                        </span>
-                        {getSubjectName(selectedSubject)} Question
-                      </CardTitle>
-                      <CardDescription>
-                        {questionType === 'objective' && 'Select the correct answer'}
-                        {questionType === 'checkbox' && 'Select all that apply'}
-                        {questionType === 'dragdrop' && 'Match the items'}
-                      </CardDescription>
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      Question {currentQuestionIndex + 1} of {questions.length}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {currentQuestion && (
-                    <>
-                      <div className="text-lg font-medium mb-4">
-                        {currentQuestion.text}
-                      </div>
-                      
-                      {/* Objective Questions */}
-                      {currentQuestion.type === 'objective' && (
-                        <RadioGroup
-                          value={
-                            Array.isArray(userAnswers[currentQuestion.id])
-                              ? (userAnswers[currentQuestion.id] as string[])[0]
-                              : ''
-                          }
-                          onValueChange={(value) => handleAnswer([value])}
-                        >
-                          <div className="space-y-3">
-                            {currentQuestion.options?.map((option) => (
-                              <div key={option} className="flex items-center space-x-2">
-                                <RadioGroupItem value={option} id={option} disabled={isChecking} />
-                                <Label htmlFor={option}>{option}</Label>
-                              </div>
-                            ))}
-                          </div>
-                        </RadioGroup>
-                      )}
-                      
-                      {/* Checkbox Questions */}
-                      {currentQuestion.type === 'checkbox' && (
-                        <div className="space-y-3">
-                          {currentQuestion.options?.map((option) => (
-                            <div key={option} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={option}
-                                checked={
-                                  Array.isArray(userAnswers[currentQuestion.id]) && 
-                                  (userAnswers[currentQuestion.id] as string[]).includes(option)
-                                }
-                                onCheckedChange={(checked) => {
-                                  const currentAnswers = Array.isArray(userAnswers[currentQuestion.id])
-                                    ? [...userAnswers[currentQuestion.id] as string[]]
-                                    : [];
-                                  
-                                  if (checked) {
-                                    handleAnswer([...currentAnswers, option]);
-                                  } else {
-                                    handleAnswer(
-                                      currentAnswers.filter((a) => a !== option)
-                                    );
-                                  }
-                                }}
-                                disabled={isChecking}
-                              />
-                              <Label htmlFor={option}>{option}</Label>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      
-                      {/* Drag & Drop Questions (simplified implementation) */}
-                      {currentQuestion.type === 'dragdrop' && (
-                        <div className="space-y-4">
-                          <p className="text-yellow-600 text-sm">
-                            Note: In a real implementation, this would be a drag & drop interface.
-                            For this demo, we're using a simplified selection approach.
-                          </p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {currentQuestion.options?.map((option, index) => (
-                              <div
-                                key={option}
-                                className="border p-3 rounded-md bg-gray-50"
-                              >
-                                {option}
-                                <select
-                                  className="ml-2 border rounded"
-                                  value={
-                                    Array.isArray(userAnswers[currentQuestion.id])
-                                      ? (userAnswers[currentQuestion.id] as string[])[index]
-                                      : ''
-                                  }
-                                  onChange={(e) => {
-                                    const currentAnswers = Array.isArray(
-                                      userAnswers[currentQuestion.id]
-                                    )
-                                      ? [...userAnswers[currentQuestion.id] as string[]]
-                                      : Array(currentQuestion.options?.length || 0).fill('');
-                                    
-                                    currentAnswers[index] = e.target.value;
-                                    handleAnswer(currentAnswers);
-                                  }}
-                                  disabled={isChecking}
-                                >
-                                  <option value="">Select</option>
-                                  {Array.from(
-                                    { length: currentQuestion.options?.length || 0 },
-                                    (_, i) => (i + 1).toString()
-                                  ).map((num) => (
-                                    <option key={num} value={num}>
-                                      {num}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Feedback section */}
-                      {isChecking && (
-                        <div className={`mt-4 p-4 rounded-md ${
-                          isCorrect ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
-                        }`}>
-                          <div className="flex items-center">
-                            {isCorrect ? (
-                              <Check className="h-5 w-5 text-green-500 mr-2" />
-                            ) : (
-                              <X className="h-5 w-5 text-red-500 mr-2" />
-                            )}
-                            <p className={isCorrect ? 'text-green-700' : 'text-red-700'}>
-                              {isCorrect ? 'Correct!' : 'Incorrect!'}
-                            </p>
-                          </div>
-                          
-                          {!isCorrect && (
-                            <div className="mt-2 text-sm">
-                              <p className="font-medium">Correct answer:</p>
-                              <p>
-                                {Array.isArray(currentQuestion.correctAnswers)
-                                  ? currentQuestion.correctAnswers.join(', ')
-                                  : currentQuestion.correctAnswers}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      
-                      <div className="flex justify-between pt-4">
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setCurrentQuestionIndex(
-                              Math.max(0, currentQuestionIndex - 1)
-                            );
-                            setIsChecking(false);
-                            setIsCorrect(null);
-                          }}
-                          disabled={currentQuestionIndex === 0}
-                        >
-                          Previous
-                        </Button>
-                        
-                        <div className="space-x-2">
-                          {!isChecking ? (
-                            <Button
-                              onClick={handleCheckAnswer}
-                              disabled={
-                                !userAnswers[currentQuestion.id] ||
-                                (Array.isArray(userAnswers[currentQuestion.id]) &&
-                                  (userAnswers[currentQuestion.id] as string[]).length === 0)
-                              }
-                            >
-                              Check Answer
-                            </Button>
-                          ) : (
-                            <Button
-                              onClick={handleNextQuestion}
-                              variant={
-                                currentQuestionIndex < questions.length - 1
-                                  ? 'default'
-                                  : 'outline'
-                              }
-                            >
-                              {currentQuestionIndex < questions.length - 1
-                                ? 'Next Question'
-                                : 'Finish'}
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        )}
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowResults(false)}>
+                Reset
+              </Button>
+              <Button onClick={handleSubmit}>
+                Check Answers
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );
