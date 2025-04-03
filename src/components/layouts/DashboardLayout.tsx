@@ -9,6 +9,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
 import {
   UserPlus, 
@@ -23,7 +25,8 @@ import {
   Menu,
   X,
   LogOut,
-  ChevronDown
+  ChevronDown,
+  Home
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -52,12 +55,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   // Navigation items based on user type
   const navigationItems = isSchool
     ? [
+        { name: 'Dashboard', icon: Home, href: '/dashboard' },
         { name: 'User Management', icon: UserPlus, href: '/dashboard/users' },
         { name: 'Paper Setting', icon: FileText, href: '/dashboard/papers' },
         { name: 'Reports', icon: BarChart, href: '/dashboard/reports' },
       ]
     : isStudent
     ? [
+        { name: 'Dashboard', icon: Home, href: '/dashboard' },
         { name: 'Learning Mode', icon: Book, href: '/dashboard/learning' },
         { name: 'Test Mode', icon: FileQuestion, href: '/dashboard/tests' },
         { name: 'Past Papers', icon: History, href: '/dashboard/past-papers' },
@@ -78,10 +83,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+        <div className="px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center">
             <Button 
               variant="ghost" 
@@ -114,11 +119,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   <ChevronDown className="h-4 w-4 ml-1" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => navigate('/dashboard')}>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate('/dashboard')} className="cursor-pointer">
+                  <Home className="h-4 w-4 mr-2" />
                   Dashboard
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="text-red-600 cursor-pointer">
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout
                 </DropdownMenuItem>
@@ -132,19 +141,19 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Sidebar */}
         <aside 
           className={cn(
-            "bg-gray-50 border-r border-gray-200 w-64 md:w-60 lg:w-64 flex-shrink-0 transition-all duration-300 fixed md:sticky top-[57px] md:top-[57px] h-[calc(100vh-57px)] z-20 overflow-y-auto",
+            "bg-white border-r border-gray-200 w-64 md:w-64 lg:w-72 flex-shrink-0 transition-all duration-300 fixed md:sticky top-[65px] md:top-[65px] h-[calc(100vh-65px)] z-20 overflow-y-auto shadow-sm",
             isSidebarOpen ? "left-0" : "-left-64"
           )}
         >
-          <nav className="p-4 space-y-1">
+          <nav className="p-4 space-y-2">
             {navigationItems.map((item) => (
               <Link
                 key={item.name}
                 to={item.href}
                 className={cn(
-                  "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                  "flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors",
                   location.pathname === item.href
-                    ? "bg-education-primary text-white"
+                    ? "bg-education-primary text-white shadow-md"
                     : "text-gray-700 hover:bg-gray-100"
                 )}
               >
@@ -165,10 +174,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         
         {/* Main content */}
         <main className={cn(
-          "flex-1 p-4 md:p-6",
+          "flex-1 p-4 md:p-6 lg:p-8",
           isSidebarOpen ? "md:ml-0" : "ml-0"
         )}>
-          {children}
+          <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 lg:p-8">
+            {children}
+          </div>
         </main>
       </div>
     </div>

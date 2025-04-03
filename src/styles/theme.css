@@ -1,0 +1,38 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --education-primary: 230 75% 56%;
+    --education-secondary: 200 75% 56%;
+    --education-accent: 280 75% 60%;
+    --education-success: 142 76% 36%;
+    --education-warning: 38 92% 50%;
+    --education-danger: 0 84% 60%;
+    --education-info: 199 89% 48%;
+  }
+}
+
+@layer utilities {
+  .bg-education-primary {
+    background-color: hsl(var(--education-primary));
+  }
+  
+  .bg-education-secondary {
+    background-color: hsl(var(--education-secondary));
+  }
+  
+  .bg-education-accent {
+    background-color: hsl(var(--education-accent));
+  }
+  
+  .text-education-primary {
+    color: hsl(var(--education-primary));
+  }
+  
+  .border-education-primary {
+    border-color: hsl(var(--education-primary));
+  }
+}

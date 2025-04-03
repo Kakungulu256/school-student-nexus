@@ -20,6 +20,9 @@ import UserManagement from "./pages/school/UserManagement";
 // Student pages
 import LearningMode from "./pages/student/LearningMode";
 
+// Add education theme colors to tailwind
+import './styles/theme.css';
+
 const queryClient = new QueryClient();
 
 const App = () => (

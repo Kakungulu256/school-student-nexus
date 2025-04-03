@@ -1,4 +1,3 @@
-
 // Mock data for development - Will be replaced with Appwrite in production
 
 // User types
@@ -21,6 +20,8 @@ export interface Student {
   username: string;
   name: string;
   status: 'active' | 'suspended';
+  email?: string; // Added for login purposes
+  password?: string; // Added for login purposes (in a real app, this would be hashed)
 }
 
 export interface Subject {
@@ -61,7 +62,7 @@ export interface Attempt {
 const mockUsers: User[] = [
   {
     id: '1',
-    email: 'admin@school.com',
+    email: 'school@example.com',
     name: 'Demo School',
     userType: 'school',
     schoolName: 'Demo School',
@@ -89,21 +90,27 @@ const mockStudents: Student[] = [
     schoolId: '1',
     username: 'S001',
     name: 'John Doe',
-    status: 'active'
+    status: 'active',
+    email: 'student@example.com',
+    password: 'password123'
   },
   {
     id: '4',
     schoolId: '1',
     username: 'S002',
     name: 'Alice Johnson',
-    status: 'active'
+    status: 'active',
+    email: 'alice@example.com',
+    password: 'password123'
   },
   {
     id: '5',
     schoolId: '1',
     username: 'S003',
     name: 'Bob Williams',
-    status: 'suspended'
+    status: 'suspended',
+    email: 'bob@example.com',
+    password: 'password123'
   }
 ];
 
@@ -191,7 +198,23 @@ export const api = {
   login: async (email: string, password: string): Promise<User> => {
     // Mock login - in production, this would use Appwrite auth
     const user = mockUsers.find(u => u.email === email);
-    if (!user) throw new Error('Invalid credentials');
+    if (!user) {
+      // Check if it's a student login
+      const student = mockStudents.find(s => s.email === email && s.password === password && s.status === 'active');
+      if (!student) {
+        throw new Error('Invalid credentials');
+      }
+      // Create a user object from the student data for login purposes
+      const studentUser: User = {
+        id: student.id,
+        email: student.email || '',
+        name: student.name,
+        userType: 'student',
+        schoolId: student.schoolId
+      };
+      currentUser = studentUser;
+      return studentUser;
+    }
     currentUser = user;
     return user;
     
@@ -365,23 +388,34 @@ export const api = {
       schoolId: student.schoolId || '',
       username: student.username || '',
       name: student.name || '',
-      status: 'active'
+      status: 'active',
+      email: student.email || `${student.username}@school.com`,
+      password: student.password || 'defaultpassword'
     };
     
     mockStudents.push(newStudent);
+    
+    // Also create a user entry for this student
+    const newUser: User = {
+      id: newStudent.id,
+      email: newStudent.email || '',
+      name: newStudent.name,
+      userType: 'student',
+      schoolId: newStudent.schoolId
+    };
+    
+    mockUsers.push(newUser);
+    
     return newStudent;
     
     /* Appwrite Implementation
     try {
       // Create a new user account
-      const user = await functions.createExecution(
-        'CREATE_STUDENT_FUNCTION_ID',
-        JSON.stringify({
-          username: student.username,
-          password: 'defaultPassword', // Generate a secure password
-          name: student.name,
-          schoolId: student.schoolId
-        })
+      const user = await account.create(
+        ID.unique(),
+        student.email || `${student.username}@school.com`,
+        student.password || 'defaultpassword',
+        student.name
       );
       
       // Add student to the database
@@ -390,11 +424,12 @@ export const api = {
         STUDENT_COLLECTION_ID,
         ID.unique(),
         {
-          userId: user.response.userId,
+          userId: user.$id,
           schoolId: student.schoolId,
           username: student.username,
           name: student.name,
-          status: 'active'
+          status: 'active',
+          email: student.email || `${student.username}@school.com`
         }
       );
       
@@ -464,14 +499,18 @@ export const api = {
         schoolId: currentUser?.id || '',
         username: 'S004',
         name: 'Bulk Student 1',
-        status: 'active'
+        status: 'active',
+        email: 'bulkstudent1@example.com',
+        password: 'password123'
       },
       {
         id: String(mockStudents.length + 2),
         schoolId: currentUser?.id || '',
         username: 'S005',
         name: 'Bulk Student 2',
-        status: 'active'
+        status: 'active',
+        email: 'bulkstudent2@example.com',
+        password: 'password123'
       }
     ];
     

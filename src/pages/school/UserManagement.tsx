@@ -1,18 +1,12 @@
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
+import { useAuth } from '@/contexts/AuthContext';
+import { api, Student } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import {
   Dialog,
   DialogContent,
@@ -22,399 +16,473 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
-import { api, Student } from '@/lib/api';
-import { useAuth } from '@/contexts/AuthContext';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
-import { UserPlus, Upload, AlertTriangle } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { UserPlus, Upload, RefreshCw, Check, X, Trash2 } from 'lucide-react';
 
 export default function UserManagement() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [students, setStudents] = useState<Student[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [newStudent, setNewStudent] = useState({
     username: '',
     name: '',
+    email: '',
+    password: '', // Added password field
   });
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [showBulkDialog, setShowBulkDialog] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
-  useEffect(() => {
-    const fetchStudents = async () => {
-      if (user && user.id) {
-        try {
-          const data = await api.getStudents(user.id);
-          setStudents(data);
-        } catch (error) {
-          toast({
-            title: 'Error',
-            description: 'Failed to fetch students',
-            variant: 'destructive',
-          });
-        } finally {
-          setIsLoading(false);
-        }
-      }
-    };
+  // Fetch students
+  const { data: students = [], isLoading } = useQuery({
+    queryKey: ['students', user?.id],
+    queryFn: () => api.getStudents(user?.id || ''),
+    enabled: !!user?.id,
+  });
 
-    fetchStudents();
-  }, [user, toast]);
-
-  const handleAddStudent = async () => {
-    if (!user) return;
-
-    try {
-      const student = await api.addStudent({
-        schoolId: user.id,
-        username: newStudent.username,
-        name: newStudent.name,
-      });
-
-      setStudents([...students, student]);
-      setNewStudent({ username: '', name: '' });
-      setShowAddDialog(false);
-
+  // Add student mutation
+  const addStudentMutation = useMutation({
+    mutationFn: (newStudent: Partial<Student>) => api.addStudent({
+      ...newStudent,
+      schoolId: user?.id,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
       toast({
         title: 'Success',
         description: 'Student added successfully',
       });
-    } catch (error) {
+      setNewStudent({ username: '', name: '', email: '', password: '' });
+      setIsAddUserDialogOpen(false);
+    },
+    onError: (error) => {
       toast({
         title: 'Error',
-        description: 'Failed to add student',
+        description: error instanceof Error ? error.message : 'Failed to add student',
         variant: 'destructive',
       });
+    },
+  });
+
+  // Update student status mutation
+  const updateStudentStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: 'active' | 'suspended' }) =>
+      api.updateStudentStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      toast({
+        title: 'Success',
+        description: 'Student status updated',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to update student status',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Remove student mutation
+  const removeStudentMutation = useMutation({
+    mutationFn: (id: string) => api.removeStudent(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      toast({
+        title: 'Success',
+        description: 'Student removed',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to remove student',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Bulk upload mutation
+  const bulkUploadMutation = useMutation({
+    mutationFn: (file: File) => api.bulkUploadStudents(file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      toast({
+        title: 'Success',
+        description: 'Students uploaded successfully',
+      });
+      setFile(null);
+      setIsUploadDialogOpen(false);
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to upload students',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleAddStudent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStudent.username || !newStudent.name || !newStudent.password) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fill in all required fields',
+        variant: 'destructive',
+      });
+      return;
     }
+    addStudentMutation.mutate(newStudent);
   };
 
-  const handleBulkUpload = async () => {
-    if (!file || !user) return;
+  const handleUpload = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) {
+      toast({
+        title: 'Please select a file',
+        description: 'You need to upload a CSV or PDF file',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setIsUploading(true);
-    
-    // Simulate progress
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 95) {
-          clearInterval(interval);
-          return 95;
-        }
-        return prev + 10;
-      });
-    }, 500);
-
-    try {
-      const newStudents = await api.bulkUploadStudents(file);
-      setStudents([...students, ...newStudents]);
-      setFile(null);
-      setUploadProgress(100);
-      
-      setTimeout(() => {
-        setIsUploading(false);
-        setUploadProgress(0);
-        setShowBulkDialog(false);
-        
-        toast({
-          title: 'Success',
-          description: `${newStudents.length} students added successfully`,
-        });
-      }, 500);
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to process bulk upload',
-        variant: 'destructive',
-      });
+    // Simulate a delay to show loading state in the demo
+    setTimeout(() => {
+      bulkUploadMutation.mutate(file);
       setIsUploading(false);
-      setUploadProgress(0);
-    } finally {
-      clearInterval(interval);
-    }
+    }, 1500);
   };
 
-  const handleStatusChange = async (student: Student) => {
-    try {
-      const newStatus = student.status === 'active' ? 'suspended' : 'active';
-      const updatedStudent = await api.updateStudentStatus(student.id, newStatus);
-      
-      setStudents(
-        students.map(s => (s.id === student.id ? updatedStudent : s))
-      );
-      
-      toast({
-        title: 'Success',
-        description: `Student ${newStatus === 'active' ? 'activated' : 'suspended'} successfully`,
-      });
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to update student status',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleDeleteStudent = async () => {
-    if (!selectedStudent) return;
-    
-    try {
-      await api.removeStudent(selectedStudent.id);
-      setStudents(students.filter(s => s.id !== selectedStudent.id));
-      setShowDeleteDialog(false);
-      
-      toast({
-        title: 'Success',
-        description: 'Student removed successfully',
-      });
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to remove student',
-        variant: 'destructive',
-      });
-    }
-  };
+  // Count active and suspended students
+  const activeStudents = students.filter(s => s.status === 'active').length;
+  const suspendedStudents = students.filter(s => s.status === 'suspended').length;
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
+      <Tabs defaultValue="all" className="space-y-6">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">User Management</h1>
             <p className="text-muted-foreground">
-              Add and manage student accounts
+              Manage student accounts for your school
             </p>
           </div>
-          
-          <div className="flex space-x-2">
-            <Dialog open={showBulkDialog} onOpenChange={setShowBulkDialog}>
+          <div className="flex gap-2">
+            <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline">
-                  <Upload className="h-4 w-4 mr-2" />
-                  Bulk Upload
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Bulk Upload Students</DialogTitle>
-                  <DialogDescription>
-                    Upload a CSV or PDF file containing student details.
-                  </DialogDescription>
-                </DialogHeader>
-                
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="file">File</Label>
-                    <Input
-                      id="file"
-                      type="file"
-                      accept=".csv,.pdf"
-                      onChange={e => {
-                        if (e.target.files) setFile(e.target.files[0]);
-                      }}
-                    />
-                    <p className="text-xs text-gray-500">
-                      Accepted formats: CSV, PDF
-                    </p>
-                  </div>
-                  
-                  {isUploading && (
-                    <div className="space-y-2">
-                      <div className="h-2 w-full bg-gray-200 rounded-full">
-                        <div
-                          className="h-full bg-education-primary rounded-full transition-all duration-300"
-                          style={{ width: `${uploadProgress}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-center">
-                        {uploadProgress < 100
-                          ? `Processing... ${uploadProgress}%`
-                          : 'Complete!'}
-                      </p>
-                    </div>
-                  )}
-                </div>
-                
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowBulkDialog(false)}
-                    disabled={isUploading}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleBulkUpload}
-                    disabled={!file || isUploading}
-                  >
-                    {isUploading ? 'Uploading...' : 'Upload'}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-            
-            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-              <DialogTrigger asChild>
-                <Button>
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Add Student
+                <Button className="flex gap-2 items-center">
+                  <UserPlus className="h-4 w-4" />
+                  <span>Add Student</span>
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Add New Student</DialogTitle>
                   <DialogDescription>
-                    Create a new student account.
+                    Create a new student account for your school.
                   </DialogDescription>
                 </DialogHeader>
-                
-                <div className="space-y-4 py-4">
+                <form onSubmit={handleAddStudent} className="space-y-4 py-4">
                   <div className="space-y-2">
                     <Label htmlFor="username">Student ID/Username</Label>
                     <Input
                       id="username"
                       value={newStudent.username}
-                      onChange={e =>
-                        setNewStudent({ ...newStudent, username: e.target.value })
-                      }
-                      placeholder="e.g., S001"
+                      onChange={(e) => setNewStudent({ ...newStudent, username: e.target.value })}
+                      placeholder="e.g. S001"
+                      required
                     />
                   </div>
-                  
                   <div className="space-y-2">
                     <Label htmlFor="name">Full Name</Label>
                     <Input
                       id="name"
                       value={newStudent.name}
-                      onChange={e =>
-                        setNewStudent({ ...newStudent, name: e.target.value })
-                      }
-                      placeholder="e.g., John Doe"
+                      onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                      placeholder="e.g. John Doe"
+                      required
                     />
                   </div>
-                </div>
-                
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleAddStudent}
-                    disabled={!newStudent.username || !newStudent.name}
-                  >
-                    Add Student
-                  </Button>
-                </DialogFooter>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email (Optional)</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={newStudent.email}
+                      onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
+                      placeholder="e.g. student@school.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={newStudent.password}
+                      onChange={(e) => setNewStudent({ ...newStudent, password: e.target.value })}
+                      placeholder="Create a password"
+                      required
+                    />
+                  </div>
+                  <DialogFooter>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setIsAddUserDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      disabled={addStudentMutation.isPending}
+                    >
+                      {addStudentMutation.isPending ? 'Adding...' : 'Add Student'}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+            
+            <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="flex gap-2 items-center">
+                  <Upload className="h-4 w-4" />
+                  <span>Bulk Upload</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Bulk Upload Students</DialogTitle>
+                  <DialogDescription>
+                    Upload a CSV or PDF file with student details.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleUpload} className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="file">Upload File</Label>
+                    <Input
+                      id="file"
+                      type="file"
+                      accept=".csv,.pdf"
+                      onChange={(e) => setFile(e.target.files?.[0] || null)}
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Accepted formats: CSV, PDF
+                    </p>
+                  </div>
+                  <DialogFooter>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setIsUploadDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      disabled={isUploading || bulkUploadMutation.isPending}
+                    >
+                      {isUploading || bulkUploadMutation.isPending ? (
+                        <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Uploading...</>
+                      ) : (
+                        'Upload'
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </form>
               </DialogContent>
             </Dialog>
           </div>
         </div>
         
-        {isLoading ? (
-          <div className="flex justify-center items-center h-64">
-            <p>Loading students...</p>
-          </div>
-        ) : students.length === 0 ? (
+        <div className="grid gap-4 md:grid-cols-3 mb-6">
           <Card>
-            <CardContent className="flex flex-col items-center justify-center p-6">
-              <UserPlus className="h-12 w-12 text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium">No students yet</h3>
-              <p className="text-gray-500 mb-4">
-                Add your first student to get started
-              </p>
-              <Button onClick={() => setShowAddDialog(true)}>
-                Add Student
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>Students</CardTitle>
-              <CardDescription>
-                Manage your student accounts
-              </CardDescription>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Total Students</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Student ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {students.map(student => (
-                    <TableRow key={student.id}>
-                      <TableCell className="font-medium">{student.username}</TableCell>
-                      <TableCell>{student.name}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={student.status === 'active' ? 'default' : 'destructive'}
-                        >
-                          {student.status === 'active' ? 'Active' : 'Suspended'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleStatusChange(student)}
-                          >
-                            {student.status === 'active' ? 'Suspend' : 'Activate'}
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedStudent(student);
-                              setShowDeleteDialog(true);
-                            }}
-                          >
-                            Remove
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="text-2xl font-bold">{students.length}</div>
             </CardContent>
           </Card>
-        )}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Active Students</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{activeStudents}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Suspended Students</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-500">{suspendedStudents}</div>
+            </CardContent>
+          </Card>
+        </div>
         
-        {/* Confirm Delete Dialog */}
-        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle className="flex items-center">
-                <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
-                Confirm Deletion
-              </DialogTitle>
-              <DialogDescription>
-                Are you sure you want to remove {selectedStudent?.name}? This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
-                Cancel
-              </Button>
-              <Button variant="destructive" onClick={handleDeleteStudent}>
-                Delete
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+        <TabsList>
+          <TabsTrigger value="all">All Students</TabsTrigger>
+          <TabsTrigger value="active">Active</TabsTrigger>
+          <TabsTrigger value="suspended">Suspended</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="all">
+          <StudentTable 
+            students={students} 
+            isLoading={isLoading} 
+            onUpdateStatus={(id, status) => updateStudentStatusMutation.mutate({ id, status })}
+            onRemove={(id) => removeStudentMutation.mutate(id)}
+            isUpdating={updateStudentStatusMutation.isPending}
+            isRemoving={removeStudentMutation.isPending}
+          />
+        </TabsContent>
+        
+        <TabsContent value="active">
+          <StudentTable 
+            students={students.filter(s => s.status === 'active')} 
+            isLoading={isLoading}
+            onUpdateStatus={(id, status) => updateStudentStatusMutation.mutate({ id, status })}
+            onRemove={(id) => removeStudentMutation.mutate(id)}
+            isUpdating={updateStudentStatusMutation.isPending}
+            isRemoving={removeStudentMutation.isPending}
+          />
+        </TabsContent>
+        
+        <TabsContent value="suspended">
+          <StudentTable 
+            students={students.filter(s => s.status === 'suspended')} 
+            isLoading={isLoading}
+            onUpdateStatus={(id, status) => updateStudentStatusMutation.mutate({ id, status })}
+            onRemove={(id) => removeStudentMutation.mutate(id)}
+            isUpdating={updateStudentStatusMutation.isPending}
+            isRemoving={removeStudentMutation.isPending}
+          />
+        </TabsContent>
+      </Tabs>
     </DashboardLayout>
+  );
+}
+
+interface StudentTableProps {
+  students: Student[];
+  isLoading: boolean;
+  onUpdateStatus: (id: string, status: 'active' | 'suspended') => void;
+  onRemove: (id: string) => void;
+  isUpdating: boolean;
+  isRemoving: boolean;
+}
+
+function StudentTable({ 
+  students, 
+  isLoading,
+  onUpdateStatus,
+  onRemove,
+  isUpdating,
+  isRemoving
+}: StudentTableProps) {
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-8">
+        <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (students.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        No students found.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md border overflow-hidden">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-gray-50">
+            <TableHead>ID</TableHead>
+            <TableHead>Name</TableHead>
+            <TableHead>Email</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {students.map((student) => (
+            <TableRow key={student.id}>
+              <TableCell className="font-medium">{student.username}</TableCell>
+              <TableCell>{student.name}</TableCell>
+              <TableCell>{student.email || '-'}</TableCell>
+              <TableCell>
+                <Badge variant={student.status === 'active' ? 'outline' : 'destructive'}>
+                  {student.status === 'active' ? 'Active' : 'Suspended'}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex justify-end gap-2">
+                  {student.status === 'active' ? (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => onUpdateStatus(student.id, 'suspended')}
+                      disabled={isUpdating}
+                      className="text-red-500 border-red-200 hover:bg-red-50"
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Suspend
+                    </Button>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => onUpdateStatus(student.id, 'active')}
+                      disabled={isUpdating}
+                      className="text-green-500 border-green-200 hover:bg-green-50"
+                    >
+                      <Check className="h-4 w-4 mr-1" />
+                      Activate
+                    </Button>
+                  )}
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => onRemove(student.id)}
+                    disabled={isRemoving}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { InfoIcon } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -42,6 +44,17 @@ export default function Login() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <Alert className="mb-6">
+              <InfoIcon className="h-4 w-4" />
+              <AlertTitle>Demo Credentials</AlertTitle>
+              <AlertDescription>
+                <div className="mt-2 space-y-2">
+                  <p><strong>School Admin:</strong> school@example.com / any password</p>
+                  <p><strong>Student:</strong> student@example.com / password123</p>
+                </div>
+              </AlertDescription>
+            </Alert>
+            
             <form onSubmit={handleSubmit}>
               <div className="space-y-4">
                 <div className="space-y-2">
