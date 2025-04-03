@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,6 +62,23 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				// Custom colors for our educational app
+				education: {
+					primary: '#1E88E5',    // Blue
+					secondary: '#26A69A',  // Teal
+					accent: '#7E57C2',     // Purple
+					success: '#66BB6A',    // Green
+					warning: '#FFCA28',    // Amber
+					error: '#EF5350',      // Red
+					light: '#F5F5F5',      // Light gray
+					dark: '#424242'        // Dark gray
+				},
+				subjects: {
+					math: '#1E88E5',       // Blue
+					english: '#26A69A',    // Teal
+					science: '#66BB6A',    // Green
+					sst: '#7E57C2'         // Purple
 				}
 			},
 			borderRadius: {
@@ -84,11 +102,26 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'fade-in': {
+					'0%': { opacity: '0' },
+					'100%': { opacity: '1' }
+				},
+				'fade-out': {
+					'0%': { opacity: '1' },
+					'100%': { opacity: '0' }
+				},
+				'slide-in': {
+					'0%': { transform: 'translateX(-10px)', opacity: '0' },
+					'100%': { transform: 'translateX(0)', opacity: '1' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'fade-in': 'fade-in 0.3s ease-in-out',
+				'fade-out': 'fade-out 0.3s ease-in-out',
+				'slide-in': 'slide-in 0.3s ease-out'
 			}
 		}
 	},
